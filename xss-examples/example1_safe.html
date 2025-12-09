@@ -1,6 +1,0 @@
-<div id="out"></div>
-<script>
-  const q = new URLSearchParams(location.search).get('q') || '';
-  // safest: avoid innerHTML — use textContent
-  document.getElementById('out').textContent = q;
-</script>
