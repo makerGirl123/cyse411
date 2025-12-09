@@ -17,7 +17,16 @@ app.disable("x-powered-by");
 app.use((req, res, next) => {
   res.setHeader(
     "Content-Security-Policy",
-    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; frame-ancestors 'none'; form-action 'self'; object-src 'none'"
+    "default-src 'none'; " +
+    "script-src 'self'; " +
+    "style-src 'self'; " +
+    "img-src 'self' data:; " +
+    "font-src 'self'; " +
+    "frame-ancestors 'none'; " +
+    "form-action 'self'; " +
+    "object-src 'none'; " +
+    "base-uri 'self'; " +
+    "connect-src 'self';"
   );
   next();
 });
