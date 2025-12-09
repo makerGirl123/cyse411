@@ -118,21 +118,29 @@ app.post(
 app.post('/read-no-validate', (req, res) => {
   const filename = req.body.filename || '';
 
-  // Resolve canonical path
-  const resolved = path.resolve(BASE_DIR, filename);
+  try {
+    // Resolve canonical path
+    const resolved = path.resolve(BASE_DIR, filename);
 
-  // Check that it is nested inside BASE_DIR
-  if (!resolved.startsWith(BASE_DIR + path.sep)) {
-    return res.status(403).json({ error: 'Path traversal detected' });
+    // Ensure the resolved path is inside BASE_DIR
+    const relative = path.relative(BASE_DIR, resolved);
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+      return res.status(403).json({ error: 'Path traversal detected' });
+    }
+
+    // Only now read the file
+    if (!fs.existsSync(resolved)) {
+      return res.status(404).json({ error: 'File not found', path: resolved });
+    }
+
+    const content = fs.readFileSync(resolved, 'utf8');
+    res.json({ path: resolved, content });
+
+  } catch (err) {
+    return res.status(400).json({ error: 'Invalid filename' });
   }
-
-  if (!fs.existsSync(resolved)) {
-    return res.status(404).json({ error: 'File not found', path: resolved });
-  }
-
-  const content = fs.readFileSync(resolved, 'utf8');
-  res.json({ path: resolved, content });
 });
+
 
 // ---------------------------
 // SAMPLE SETUP ROUTE
