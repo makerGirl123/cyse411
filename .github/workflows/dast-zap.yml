@@ -17,11 +17,11 @@ jobs:
           node-version: '20'
 
       - name: Install lab dependencies
-        working-directory: fastbank_insecure_classwork/backend
+        working-directory: canonicalization-example
         run: npm install
 
       - name: Start vulnerable app
-        working-directory: fastbank_insecure_classwork/backend
+        working-directory: canonicalization-example
         run: |
           npm start &
           sleep 20
