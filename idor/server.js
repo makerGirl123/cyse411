@@ -1,9 +1,26 @@
 const express = require("express");
 const app = express();
 
+// ------------------------
+// SECURITY MIDDLEWARE
+// ------------------------
+
+// Hide Express fingerprint
+app.disable('x-powered-by');
+
+// Optional: add basic security headers
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff'); // prevents MIME sniffing
+  res.setHeader('X-Frame-Options', 'DENY');           // clickjacking protection
+  res.setHeader('Content-Security-Policy', "default-src 'self'"); // basic CSP
+  next();
+});
+
 app.use(express.json());
 
-// Fake "database"
+// ------------------------
+// FAKE "DATABASE"
+// ------------------------
 const users = [
   { id: 1, name: "Alice", role: "customer", department: "north" },
   { id: 2, name: "Bob", role: "customer", department: "south" },
@@ -17,9 +34,9 @@ const orders = [
   { id: 4, userId: 2, item: "Keyboard", region: "south", total: 60 },
 ];
 
-// Very simple "authentication" via headers:
-//   X-User-Id: <user id>
-//   (we pretend that real auth already happened)
+// ------------------------
+// FAKE AUTHENTICATION
+// ------------------------
 function fakeAuth(req, res, next) {
   const idHeader = req.header("X-User-Id");
   const id = idHeader ? parseInt(idHeader, 10) : null;
@@ -29,15 +46,17 @@ function fakeAuth(req, res, next) {
     return res.status(401).json({ error: "Unauthenticated: set X-User-Id" });
   }
 
-  // Attach authenticated user to the request
   req.user = user;
   next();
 }
 
-// Apply fakeAuth to all routes below this line
 app.use(fakeAuth);
 
-// VULNERABLE endpoint: no ownership check (IDOR)
+// ------------------------
+// ROUTES
+// ------------------------
+
+// Vulnerable endpoint: no ownership check (IDOR)
 app.get("/orders/:id", (req, res) => {
   const orderId = parseInt(req.params.id, 10);
 
@@ -49,8 +68,6 @@ app.get("/orders/:id", (req, res) => {
   // BUG: no check that order.userId === req.user.id
   return res.json(order);
 });
-
-
 
 // Health check
 app.get("/", (req, res) => {
