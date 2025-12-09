@@ -80,7 +80,11 @@ const limiter = rateLimit({
 });
 
 // Apply rate limiter to all file-read endpoints
-app.use(['/read', '/read-no-validate'], limiter);
+if (process.env.DAST_SCAN === 'true') {
+  app.use(['/read', '/read-no-validate'], (req,res,next)=>next());
+} else {
+  app.use(['/read', '/read-no-validate'], limiter);
+}
 
 // ---------------------------
 // HELPER: Resolve safe path
