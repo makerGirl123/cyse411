@@ -17,11 +17,11 @@ jobs:
           node-version: '20'
 
       - name: Install lab dependencies
-        working-directory: idor
+        working-directory: fastbank-auth-lab
         run: npm install
 
       - name: Start vulnerable app
-        working-directory: idor
+        working-directory: fastbank-auth-lab
         run: |
           npm start &
           sleep 20
