@@ -5,6 +5,32 @@ const crypto = require("crypto");
 const bcrypt = require("bcrypt");
 
 const app = express();
+
+// Hide Express fingerprint
+app.disable('x-powered-by');
+
+// CSP header
+app.use((req, res, next) => {
+  res.setHeader("Content-Security-Policy",
+    "default-src 'self'; frame-ancestors 'none'; form-action 'self'"
+  );
+  next();
+});
+
+// Permissions Policy header
+app.use((req, res, next) => {
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  next();
+});
+
+// Prevent caching of sensitive content
+app.use((req, res, next) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, private");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+});
+
 const PORT = 3001;
 
 app.use(bodyParser.urlencoded({ extended: false }));
