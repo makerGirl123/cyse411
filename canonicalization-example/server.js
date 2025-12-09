@@ -3,32 +3,43 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const { body, validationResult } = require('express-validator');
-// const helmet = require('helmet');   // OPTIONAL (see notes below)
+const helmet = require('helmet');
 
 const app = express();
 
-app.disable("x-powered-by");
+// ---------------------------
+// GENERAL SETTINGS
+// ---------------------------
+app.disable("x-powered-by"); // hide Express fingerprint
+
+app.use(express.urlencoded({ extended: false }));
+app.use(express.json());
+
+const BASE_DIR = path.resolve(__dirname, 'files');
+if (!fs.existsSync(BASE_DIR)) fs.mkdirSync(BASE_DIR, { recursive: true });
 
 // ---------------------------
 // SECURITY HEADERS
 // ---------------------------
 
-// Recommended: simple, strong CSP
-app.use((req, res, next) => {
-  res.setHeader(
-    "Content-Security-Policy",
-    "default-src 'self'; " +
-    "script-src 'self'; " +
-    "style-src 'self'; " +
-    "img-src 'self' data:; " +
-    "font-src 'self'; " +
-    "frame-ancestors 'none'; " +
-    "form-action 'self';"
-  );
-  next();
-});
+// Helmet CSP + other security headers
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'"],
+        imgSrc: ["'self'", "data:"],
+        fontSrc: ["'self'"],
+        frameAncestors: ["'none'"],
+        formAction: ["'self'"]
+      }
+    }
+  })
+);
 
-// Prevent clickjacking
+// Clickjacking protection
 app.use((req, res, next) => {
   res.setHeader("X-Frame-Options", "DENY");
   next();
@@ -40,7 +51,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Reduce attack surface (Spectre, cross-origin leaks)
+// Cross-origin protections (Spectre / resource isolation)
 app.use((req, res, next) => {
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
   res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
@@ -48,7 +59,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Restrict browser features
+// Permissions policy (restrict browser features)
 app.use((req, res, next) => {
   res.setHeader(
     "Permissions-Policy",
@@ -57,43 +68,22 @@ app.use((req, res, next) => {
   next();
 });
 
-// Safe defaults for dynamic responses
+// Safe cache defaults for dynamic content
 app.use((req, res, next) => {
   res.setHeader("Cache-Control", "no-store");
   next();
 });
 
 // ---------------------------
-// OPTIONAL: Helmet (already covered above)
+// STATIC FILES (after all headers!)
 // ---------------------------
-
-/*
-app.use(
-  helmet({
-    contentSecurityPolicy: false, // since we set it manually above
-    frameguard: { action: "deny" },
-    xssFilter: true,
-    noSniff: true,
-    referrerPolicy: { policy: "no-referrer" },
-    crossOriginEmbedderPolicy: true,
-    crossOriginOpenerPolicy: true,
-    crossOriginResourcePolicy: { policy: "same-origin" }
-  })
-);
-*/
-
-// ---------------------------
-// NORMAL APP CONFIG
-// ---------------------------
-
-app.use(express.urlencoded({ extended: false }));
-app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const BASE_DIR = path.resolve(__dirname, 'files');
-if (!fs.existsSync(BASE_DIR)) fs.mkdirSync(BASE_DIR, { recursive: true });
+// ---------------------------
+// HELPERS
+// ---------------------------
 
-// Canonicalize & check
+// Canonicalize and check file path
 function resolveSafe(baseDir, userInput) {
   try {
     userInput = decodeURIComponent(userInput);
@@ -104,7 +94,6 @@ function resolveSafe(baseDir, userInput) {
 // ---------------------------
 // SECURE ROUTE
 // ---------------------------
-
 app.post(
   '/read',
   body('filename')
@@ -116,7 +105,6 @@ app.post(
       if (value.includes('\0')) throw new Error('Null byte not allowed');
       return true;
     }),
-
   (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty())
@@ -138,9 +126,8 @@ app.post(
 );
 
 // ---------------------------
-// INTENTIONALLY VULNERABLE ROUTE
+// INTENTIONALLY VULNERABLE ROUTE (demo)
 // ---------------------------
-
 app.post('/read-no-validate', (req, res) => {
   const filename = req.body.filename || '';
   const joined = path.join(BASE_DIR, filename);
@@ -153,9 +140,8 @@ app.post('/read-no-validate', (req, res) => {
 });
 
 // ---------------------------
-// SAMPLE SETUP ROUTE
+// SAMPLE FILE SETUP ROUTE
 // ---------------------------
-
 app.post('/setup-sample', (req, res) => {
   const samples = {
     'hello.txt': 'Hello from safe file!\n',
@@ -175,7 +161,6 @@ app.post('/setup-sample', (req, res) => {
 // ---------------------------
 // START SERVER
 // ---------------------------
-
 if (require.main === module) {
   const port = process.env.PORT || 4000;
   app.listen(port, () => {
