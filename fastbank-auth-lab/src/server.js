@@ -21,8 +21,9 @@ app.disable('x-powered-by');
 // CSP header
 app.use((req, res, next) => {
   res.setHeader("Content-Security-Policy",
-    "default-src 'self'; frame-ancestors 'none'; form-action 'self'"
-  );
+  "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; frame-ancestors 'none'; form-action 'self'; object-src 'none'; base-uri 'self'"
+);
+
   next();
 });
 
@@ -32,13 +33,16 @@ app.use((req, res, next) => {
   next();
 });
 
-// Prevent caching of sensitive content
-app.use((req, res, next) => {
+// Only prevent caching for sensitive endpoints
+app.use('/api', (req, res, next) => {
   res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate, private");
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Expires", "0");
   next();
 });
+
+// Let public static files be cached
+app.use(express.static("public", { maxAge: '1d' }));
 
 
 const users = [
