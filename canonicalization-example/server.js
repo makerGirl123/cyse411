@@ -3,7 +3,6 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const { body, validationResult } = require('express-validator');
-const rateLimit = require('express-rate-limit');
 
 const app = express();
 
@@ -70,23 +69,6 @@ const BASE_DIR = path.resolve(__dirname, 'files');
 if (!fs.existsSync(BASE_DIR)) fs.mkdirSync(BASE_DIR, { recursive: true });
 
 // ---------------------------
-// RATE LIMITER
-// ---------------------------
-
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 50, // max 50 requests per window per IP
-  message: { error: 'Too many requests, please try again later.' }
-});
-
-// Apply rate limiter to all file-read endpoints
-if (process.env.DAST_SCAN === 'true') {
-  app.use(['/read', '/read-no-validate'], (req,res,next)=>next());
-} else {
-  app.use(['/read', '/read-no-validate'], limiter);
-}
-
-// ---------------------------
 // HELPER: Resolve safe path
 // ---------------------------
 
@@ -111,13 +93,10 @@ app.post(
   body('filename')
     .exists().withMessage('filename required')
     .isString().trim().notEmpty().withMessage('filename must not be empty')
-
-
     .custom(value => {
       if (value.includes('\0')) throw new Error('Null byte not allowed');
       return true;
     }),
-
   (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty())
@@ -125,10 +104,6 @@ app.post(
 
     try {
       const normalized = resolveSafePath(BASE_DIR, req.body.filename);
-
-
-
-
 
       if (!fs.existsSync(normalized))
         return res.status(404).json({ error: 'File not found' });
@@ -144,14 +119,6 @@ app.post(
 // ---------------------------
 // INTENTIONALLY VULNERABLE ROUTE FIXED: /read-no-validate
 // ---------------------------
-
-
-
-
-
-
-
-
 
 app.post('/read-no-validate', (req, res) => {
   const filename = req.body.filename || '';
@@ -170,8 +137,6 @@ app.post('/read-no-validate', (req, res) => {
     return res.status(403).json({ error: err.message });
   }
 });
-
-
 
 // ---------------------------
 // SAMPLE SETUP ROUTE
