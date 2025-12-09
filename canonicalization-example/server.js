@@ -115,31 +115,32 @@ app.post(
 // INTENTIONALLY VULNERABLE ROUTE
 // ---------------------------
 
+function safeJoin(base, userPath) {
+  const targetPath = path.resolve(base, userPath);
+  if (!targetPath.startsWith(base + path.sep) && targetPath !== base) {
+    throw new Error('Path traversal detected');
+  }
+  return targetPath;
+}
+
 app.post('/read-no-validate', (req, res) => {
   const filename = req.body.filename || '';
 
   try {
-    // Resolve canonical path
-    const resolved = path.resolve(BASE_DIR, filename);
+    const safePath = safeJoin(BASE_DIR, filename);
 
-    // Ensure the resolved path is inside BASE_DIR
-    const relative = path.relative(BASE_DIR, resolved);
-    if (relative.startsWith('..') || path.isAbsolute(relative)) {
-      return res.status(403).json({ error: 'Path traversal detected' });
+    if (!fs.existsSync(safePath)) {
+      return res.status(404).json({ error: 'File not found', path: safePath });
     }
 
-    // Only now read the file
-    if (!fs.existsSync(resolved)) {
-      return res.status(404).json({ error: 'File not found', path: resolved });
-    }
-
-    const content = fs.readFileSync(resolved, 'utf8');
-    res.json({ path: resolved, content });
+    const content = fs.readFileSync(safePath, 'utf8');
+    res.json({ path: safePath, content });
 
   } catch (err) {
-    return res.status(400).json({ error: 'Invalid filename' });
+    return res.status(400).json({ error: err.message });
   }
 });
+
 
 
 // ---------------------------
