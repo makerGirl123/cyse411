@@ -3,7 +3,6 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const { body, validationResult } = require('express-validator');
-const rateLimit = require('express-rate-limit');
 
 const app = express();
 
@@ -16,9 +15,8 @@ app.disable("x-powered-by");
 
 // Content Security Policy
 app.use((req, res, next) => {
-  res.setHeader(
-    "Content-Security-Policy",
-    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; frame-ancestors 'none'; form-action 'self'; object-src 'none'"
+  res.setHeader("Content-Security-Policy", 
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; frame-ancestors 'none'; form-action 'self'"
   );
   next();
 });
@@ -35,7 +33,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Reduce attack surface
+// Reduce attack surface (Spectre, cross-origin leaks)
 app.use((req, res, next) => {
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
   res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
@@ -69,88 +67,80 @@ app.use(express.static(path.join(__dirname, 'public')));
 const BASE_DIR = path.resolve(__dirname, 'files');
 if (!fs.existsSync(BASE_DIR)) fs.mkdirSync(BASE_DIR, { recursive: true });
 
-// ---------------------------
-// RATE LIMITER
-// ---------------------------
-
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 50, // max 50 requests per window per IP
-  message: { error: 'Too many requests, please try again later.' }
-});
-
-// Apply rate limiter to all file-read endpoints
-app.use(['/read', '/read-no-validate'], limiter);
-
-// ---------------------------
-// HELPER: Resolve safe path
-// ---------------------------
-
-function resolveSafePath(baseDir, userInput) {
+// Canonicalize & check
+function resolveSafe(baseDir, userInput) {
   try {
     userInput = decodeURIComponent(userInput);
   } catch (e) {}
-  const resolved = path.resolve(baseDir, userInput);
-  const real = fs.realpathSync(resolved);
-  if (!real.startsWith(baseDir)) {
-    throw new Error('Path traversal detected');
-  }
-  return real;
+  return path.resolve(baseDir, userInput);
 }
 
 // ---------------------------
-// SECURE ROUTE: /read
+// SECURE ROUTE
 // ---------------------------
 
 app.post(
   '/read',
   body('filename')
     .exists().withMessage('filename required')
-    .isString().trim().notEmpty().withMessage('filename must not be empty')
+    .isString()
+    .trim()
+    .notEmpty().withMessage('filename must not be empty')
     .custom(value => {
       if (value.includes('\0')) throw new Error('Null byte not allowed');
       return true;
     }),
+
   (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty())
       return res.status(400).json({ errors: errors.array() });
 
-    try {
-      const normalized = resolveSafePath(BASE_DIR, req.body.filename);
+    const filename = req.body.filename;
+    const normalized = resolveSafe(BASE_DIR, filename);
 
-      if (!fs.existsSync(normalized))
-        return res.status(404).json({ error: 'File not found' });
-
-      const content = fs.readFileSync(normalized, 'utf8');
-      res.json({ path: normalized, content });
-    } catch (err) {
-      res.status(403).json({ error: err.message });
+    if (!normalized.startsWith(BASE_DIR + path.sep)) {
+      return res.status(403).json({ error: 'Path traversal detected' });
     }
+
+    if (!fs.existsSync(normalized))
+      return res.status(404).json({ error: 'File not found' });
+
+    const content = fs.readFileSync(normalized, 'utf8');
+    res.json({ path: normalized, content });
   }
 );
 
 // ---------------------------
-// INTENTIONALLY VULNERABLE ROUTE FIXED: /read-no-validate
+// INTENTIONALLY VULNERABLE ROUTE
 // ---------------------------
 
 app.post('/read-no-validate', (req, res) => {
   const filename = req.body.filename || '';
 
-  try {
-    const safePath = resolveSafePath(BASE_DIR, filename);
+  // Resolve canonical path
+  const resolved = path.resolve(BASE_DIR, filename);
 
-    if (!fs.existsSync(safePath)) {
-      return res.status(404).json({ error: 'File not found' });
-    }
 
-    const content = fs.readFileSync(safePath, 'utf8');
-    res.json({ path: safePath, content });
-
-  } catch (err) {
-    return res.status(403).json({ error: err.message });
+  // Check that it is nested inside BASE_DIR
+  if (!resolved.startsWith(BASE_DIR + path.sep)) {
+    return res.status(403).json({ error: 'Path traversal detected' });
   }
+
+
+  if (!fs.existsSync(resolved)) {
+    return res.status(404).json({ error: 'File not found', path: resolved });
+  }
+
+
+
+
+
+  const content = fs.readFileSync(resolved, 'utf8');
+  res.json({ path: resolved, content });
+
 });
+
 
 // ---------------------------
 // SAMPLE SETUP ROUTE
