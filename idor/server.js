@@ -1,14 +1,9 @@
 const express = require("express");
 const app = express();
 
-// ------------------------
-// SECURITY MIDDLEWARE
-// ------------------------
-
 // Hide Express fingerprint
 app.disable('x-powered-by');
 
-// Optional: add basic security headers
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff'); // prevents MIME sniffing
   res.setHeader('X-Frame-Options', 'DENY');           // clickjacking protection
@@ -18,9 +13,6 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
-// ------------------------
-// FAKE "DATABASE"
-// ------------------------
 const users = [
   { id: 1, name: "Alice", role: "customer", department: "north" },
   { id: 2, name: "Bob", role: "customer", department: "south" },
@@ -34,9 +26,6 @@ const orders = [
   { id: 4, userId: 2, item: "Keyboard", region: "south", total: 60 },
 ];
 
-// ------------------------
-// FAKE AUTHENTICATION
-// ------------------------
 function fakeAuth(req, res, next) {
   const idHeader = req.header("X-User-Id");
   const id = idHeader ? parseInt(idHeader, 10) : null;
@@ -52,11 +41,6 @@ function fakeAuth(req, res, next) {
 
 app.use(fakeAuth);
 
-// ------------------------
-// ROUTES
-// ------------------------
-
-// Vulnerable endpoint: no ownership check (IDOR)
 app.get("/orders/:id", (req, res) => {
   const orderId = parseInt(req.params.id, 10);
 
@@ -65,7 +49,6 @@ app.get("/orders/:id", (req, res) => {
     return res.status(404).json({ error: "Order not found" });
   }
 
-  // BUG: no check that order.userId === req.user.id
   return res.json(order);
 });
 
