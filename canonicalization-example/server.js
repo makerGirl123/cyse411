@@ -6,10 +6,6 @@ const { body, validationResult } = require('express-validator');
 
 const app = express();
 
-// ---------------------------
-// SECURITY HEADERS
-// ---------------------------
-
 // Hide Express fingerprint
 app.disable("x-powered-by");
 
@@ -66,10 +62,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// ---------------------------
-// NORMAL APP CONFIG
-// ---------------------------
-
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -77,9 +69,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 const BASE_DIR = path.resolve(__dirname, 'files');
 if (!fs.existsSync(BASE_DIR)) fs.mkdirSync(BASE_DIR, { recursive: true });
 
-// ---------------------------
-// HELPER: Resolve safe path
-// ---------------------------
 
 function resolveSafePath(baseDir, userInput) {
   try {
@@ -93,9 +82,6 @@ function resolveSafePath(baseDir, userInput) {
   return real;
 }
 
-// ---------------------------
-// SECURE ROUTE: /read
-// ---------------------------
 
 app.post(
   '/read',
@@ -125,9 +111,6 @@ app.post(
   }
 );
 
-// ---------------------------
-// INTENTIONALLY VULNERABLE ROUTE FIXED: /read-no-validate
-// ---------------------------
 
 app.post('/read-no-validate', (req, res) => {
   const filename = req.body.filename || '';
@@ -147,10 +130,6 @@ app.post('/read-no-validate', (req, res) => {
   }
 });
 
-// ---------------------------
-// SAMPLE SETUP ROUTE
-// ---------------------------
-
 app.post('/setup-sample', (req, res) => {
   const samples = {
     'hello.txt': 'Hello from safe file!\n',
@@ -167,9 +146,6 @@ app.post('/setup-sample', (req, res) => {
   res.json({ ok: true, base: BASE_DIR });
 });
 
-// ---------------------------
-// START SERVER
-// ---------------------------
 
 if (require.main === module) {
   const port = process.env.PORT || 4000;
